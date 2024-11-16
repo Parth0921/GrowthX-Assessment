@@ -17,6 +17,10 @@ const adminSchema = new mongoose.Schema({
     },
 }, { timestamps: true })
 
+export type AdminDocument = mongoose.InferSchemaType<typeof adminSchema> & {
+    _id: mongoose.Types.ObjectId 
+};
+
 
 const Admin = mongoose.model("Admin", adminSchema);
 export default Admin;

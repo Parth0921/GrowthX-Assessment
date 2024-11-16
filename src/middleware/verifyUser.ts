@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { convertIdStringToObjectId, decodeAccessToken } from '../controllers/helper';
 import User, { UserDocument } from '../mongodb/models/user';
 // if flow reaches here we are sure that request is authorized
+// Need to make sure that the request is from a user
 
 export interface CustomUserRequest extends Request {
     user?: UserDocument; 
