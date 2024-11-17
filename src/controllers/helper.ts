@@ -23,13 +23,14 @@ export const verifyAccessToken = (token: string) => {
 interface Token  {
     email: string;
     id: string;
+    role: "user" | "admin";
     iat: number;
     exp: number;
 }
 
 export const decodeAccessToken = (token: string) => {
     const decodedToken = jwt.decode(token);
-    if (!decodedToken || typeof decodedToken !== 'object' || !('email' in decodedToken) || !('id' in decodedToken)) {
+    if (!decodedToken || typeof decodedToken !== 'object' || !('email' in decodedToken) || !('id' in decodedToken) || !('role' in decodedToken)) {
         return null;
     }
     return decodedToken as Token;

@@ -2,9 +2,8 @@ import { Router } from "express";
 import { authRouter } from "../controllers/authentication";
 import { verifyJWT } from "../middleware/verifyJWT";
 import { userRouter } from "../controllers/user";
-import { verifyUser } from "../middleware/verifyUser";
+import { verifyAdmin, verifyUser } from "../middleware/verifyUser";
 import { adminRouter } from "../controllers/admin";
-import { verifyAdmin } from "../middleware/verifyAdmin";
 const router = Router();
 
 router.use("/auth", authRouter);

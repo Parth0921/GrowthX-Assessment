@@ -1,72 +1,84 @@
 import { Router } from "express";
-import { CustomAdminRequest } from "../middleware/verifyAdmin";
+import { CustomUserRequest } from "../middleware/verifyUser";
 import Assignment from "../mongodb/models/assignment";
 import { convertIdStringToObjectId } from "./helper";
 
 const router = Router();
 
-
-router.get("/assignments", async (req: CustomAdminRequest, res) => {
-    const adminId = req.admin?._id;
-    if (!adminId) {
+router.get("/assignments", async (req: CustomUserRequest, res) => {
+    if (!req.user) {
         res.status(401).send("Unauthorized");
         return;
     }
-
-    // get all assignments for this admin
-    const assignments = await Assignment.find({ admin: adminId }).populate("createdBy", "name");
-    if (!assignments || assignments.length === 0) {
-        res.status(404).send("No assignments found");
-        return;
-    }
-
-    const assignmentsToSend = assignments.map((assignment) => {
-        return {
-            task: assignment.task,
-            status: assignment.status,
-            createdBy: assignment.createdBy,
-            createdAt: assignment.createdAt,
+    try {
+        const assignments = await Assignment.find({admin: req.user._id}).populate("createdBy", "name email");
+        if (!assignments) {
+            res.status(200).send("No assignments found");
+            return;
         }
-    })
-    
-    res.status(200).send(assignmentsToSend);
+        const assignmentInformation = assignments.map((assignment) => {
+            return {
+                taskId: assignment._id.toString(),
+                task: assignment.task,
+                createdBy: assignment.createdBy,
+                status: assignment.status
+            }
+        })
+        res.status(200).send(assignmentInformation);
+    } catch (error) {
+        res.status(500).send("Internal server error");
+        return;
+    }
 })
 
-router.post("/assignments/:id/accept", async (req: CustomAdminRequest, res) => {
-    const adminId = req.admin?._id;
-    if (!adminId) {
+router.post("/assignments/:id/accept", async (req: CustomUserRequest, res) => {
+    if (!req.user) {
         res.status(401).send("Unauthorized");
         return;
     }
-
     const assignmentId = req.params.id;
-    const assignment = await Assignment.findOne({ _id: assignmentId, admin: adminId });
-    if (!assignment) {
-        res.status(404).send("Assignment not found");
+    if (!assignmentId) {
+        res.status(400).send("Invalid input");
         return;
     }
-
-    assignment.status = "Accepted";
-    await assignment.save();
-    res.status(200).send("Assignment accepted");
+    try {
+        const assignment = await Assignment.findOne({_id: convertIdStringToObjectId(assignmentId), admin: req.user._id});
+        if (!assignment) {
+            res.status(400).send("Assignment id not found");
+            return;
+        }
+        assignment.status = "Accepted";
+        await assignment.save();
+        res.status(200).send("Assignment Accepted");
+    } catch (err) {
+        console.log(err);
+        res.sendStatus(500);
+    }
 })
 
-router.post("/assignments/:id/reject", async (req: CustomAdminRequest, res) => {
-    const adminId = req.admin?._id;
-    if (!adminId) {
+router.post("/assignments/:id/reject", async (req: CustomUserRequest, res) => {
+    if (!req.user) {
         res.status(401).send("Unauthorized");
         return;
     }
-
     const assignmentId = req.params.id;
-    const assignment = await Assignment.findOne({ _id: convertIdStringToObjectId(assignmentId), admin: adminId });
-    if (!assignment) {
-        res.status(404).send("Assignment not found");
+    if (!assignmentId) {
+        res.status(400).send("Invalid input");
         return;
     }
-
-    assignment.status = "Rejected";
-    await assignment.save();
-    res.status(200).send("Assignment Rejected");
+    try {
+        const assignment = await Assignment.findOne({_id: convertIdStringToObjectId(assignmentId), admin: req.user._id});
+        if (!assignment) {
+            res.status(400).send("Assignment id not found");
+            return;
+        }
+        assignment.status = "Rejected";
+        await assignment.save();
+        res.status(200).send("Assignment Rejected");
+    } catch (err) {
+        console.log(err);
+        res.sendStatus(500);
+    }
 })
+
 export const adminRouter = router;
