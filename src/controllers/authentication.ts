@@ -2,21 +2,28 @@ import { Router } from "express";
 import { TUser } from "../types/user.types";
 import User from "../mongodb/models/user";
 import { generateAccessToken, generateHashPassword, matchPassword } from "./helper";
-import Admin from "../mongodb/models/admin";
 const router = Router();
 
-router.post("/user/register", async (req, res) => {
+router.post("/register", async (req, res) => {
     const newUser: TUser = req.body;
-    console.log(newUser);
-    if (!newUser.name || !newUser.email || !newUser.password) {
+    if (!newUser.name || !newUser.email || !newUser.password || !newUser.role) {
         res.status(400).send("Please provide all the details");
         return;
-    }
-    // check if the user already exists
-    const userExists = await User.findOne({ email: newUser.email});
-    if (userExists) {
-        res.status(400).send("User already exists");
+    } else if (newUser.role !== "user" && newUser.role !== "admin") {
+        res.status(400).send("Invalid role");
         return;
+    }
+
+    // check if the user already exists
+    try {
+        const userExists = await User.findOne({ email: newUser.email});
+        if (userExists) {
+            res.status(400).send("User already exists");
+            return;
+        }
+    } catch (e) {
+        console.log(e)
+        res.sendStatus(500);
     }
 
     // hash the password
@@ -24,23 +31,44 @@ router.post("/user/register", async (req, res) => {
     newUser.password = hashPassword;
     
     // create a new user
-    await User.create(newUser);
-    res.sendStatus(201);
+    const user = new User({
+        name: newUser.name,
+        email: newUser.email,
+        password: newUser.password,
+        role: newUser.role
+    });
+    try {
+        await user.save();
+        res.sendStatus(201);
+    } catch(e) {
+        console.log(e);
+        res.sendStatus(500);
+    }
 })
 
-router.post("/user/login", async (req, res) => {
-    const reqUser:TUser = req.body;
+type TLogin = Omit<TUser, "name" | "role">;
+
+router.post("/login", async (req, res) => {
+    const reqUser:TLogin = req.body;
     if (!reqUser.email || !reqUser.password) {
         res.status(400).send("Please provide all the details");
         return;
     }
 
-    // check if the user exists
-    const user = await User.findOne({ email: reqUser.email});
-    if (!user) {
-        res.status(400).send("User does not exists");
+    let user;
+    try {
+        // check if the user exists
+        user = await User.findOne({ email: reqUser.email});
+        if (!user) {
+            res.status(400).send("User does not exists");
+            return;
+        }
+    } catch(e) {
+        console.log(e);
+        res.sendStatus(500);
         return;
     }
+    
 
     // check if the password is correct
     const isPasswordMatch = await matchPassword(reqUser.password, user.password);
@@ -51,68 +79,13 @@ router.post("/user/login", async (req, res) => {
 
     const accessToken = generateAccessToken({
         email: user.email,
+        role: user.role,
         id: user._id.toString(),
     })
 
     // set the access token in the cookie
     res.cookie("accessToken", accessToken, { httpOnly: true, secure: true, sameSite: "none", maxAge: 1000 * 60 * 5})
-
     res.status(200).send("Login successful");
-})
-
-router.post("/admin/register", async (req, res) => {
-   const newAdmin: TUser = req.body;
-    if (!newAdmin.name || !newAdmin.email || !newAdmin.password) {
-        res.status(400).send("Please provide all the details");
-        return;
-    }
-    // check if the user already exists
-    const adminExists = await Admin.findOne({ email: newAdmin.email});
-    if (adminExists) {
-        res.status(400).send("Admin already exists");
-        return;
-    }
-
-    // hash the password
-    const hashPassword = await generateHashPassword(newAdmin.password);
-    newAdmin.password = hashPassword;
-    
-    // create a new user
-    await Admin.create(newAdmin);
-    res.sendStatus(201); 
-})
-
-router.post("/admin/login", async (req, res) => {
-    const adminReq:TUser = req.body;
-    if (!adminReq.email || !adminReq.password) {
-        res.status(400).send("Please provide all the details");
-        return;
-    }
-
-    // check if the user exists
-    const admin = await Admin.findOne({ email: adminReq.email});
-    if (!admin) {
-        res.status(400).send("User does not exists");
-        return;
-    }
-
-    // check if the password is correct
-    const isPasswordMatch = await matchPassword(adminReq.password, admin.password);
-    if (!isPasswordMatch) {
-        res.status(400).send("Incorrect password");
-        return;
-    }
-
-    const accessToken = generateAccessToken({
-        email: admin.email,
-        id: admin._id.toString(),
-    })
-
-    // set the access token in the cookie
-    res.cookie("accessToken", accessToken, { httpOnly: true, secure: true, sameSite: "none", maxAge: 1000 * 60 * 5})
-
-    res.status(200).send("Login successful");
-    
 })
 
 router.post("/logout", (req, res) => {
@@ -126,4 +99,5 @@ router.post("/logout", (req, res) => {
     res.clearCookie("accessToken");
     res.status(200).send("Logout successful");
 })
+
 export const authRouter = router;
